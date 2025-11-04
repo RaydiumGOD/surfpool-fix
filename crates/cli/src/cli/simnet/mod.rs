@@ -451,23 +451,27 @@ async fn write_and_execute_iac(
                         // Disregard any event that would not create or modify a .so file
                         let mut found_candidates = false;
                         match res {
-                            Ok(Event {
-                                kind: EventKind::Modify(ModifyKind::Data(DataChange::Content)),
-                                paths,
-                                attrs: _,
-                            })
-                            | Ok(Event {
-                                kind: EventKind::Create(CreateKind::File),
-                                paths,
-                                attrs: _,
-                            }) => {
-                                for path in paths.iter() {
-                                    if path.to_string_lossy().ends_with(".so") {
-                                        found_candidates = true;
+                            Ok(Event { kind, paths, attrs: _ }) => {
+                                match kind {
+                                    // Handle both content changes and renames, plus any create events                                    
+                                    EventKind::Modify(ModifyKind::Data(_))
+                                    | EventKind::Modify(ModifyKind::Name(_))
+                                    | EventKind::Create(_) => {
+                                        for path in paths.iter() {
+                                            if path.to_string_lossy().ends_with(".so") {
+                                                found_candidates = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    _ => {
+                                        // Irrelevant event
                                     }
                                 }
                             }
-                            _ => continue,
+                            Err(_) => {
+                                // Ignore watcher errors for individual events
+                            }
                         }
 
                         if !found_candidates {
